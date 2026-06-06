@@ -6,18 +6,6 @@ volumes:
   mysql:
 
 services:
-  frontend:
-    image: example/webapp
-    ports:
-      - "443:8043"
-    networks:
-      - front-tier
-      - back-tier
-    configs:
-      - httpd-config
-    secrets:
-      - server-certificate
-
   mysql:
     image: mysql:1.0.0
     volumes:
