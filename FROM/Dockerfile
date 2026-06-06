@@ -1,6 +1,8 @@
 FROM almalinux:9
-ENTRYPOINT ["ping"]
-CMD ["google.com"]
+RUN useradd expense
+CMD ["sleep","100"]
+#ENTRYPOINT ["ping"]
+#CMD ["google.com"]
 #EXPOSE 80
 #ENV project="devops" \
     #name="gali"
