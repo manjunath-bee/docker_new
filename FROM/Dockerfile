@@ -1,8 +1,8 @@
 FROM almalinux:9
 #RUN useradd expense
 #USER expense
-RUN mkdir /path/to/workdir
-WORKDIR /path/to/workdir
+RUN mkdir /workdir
+WORKDIR /workdir
 CMD ["sleep","100"]
 #ENTRYPOINT ["ping"]
 #CMD ["google.com"]
