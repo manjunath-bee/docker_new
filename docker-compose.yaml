@@ -17,7 +17,7 @@ services:
   backend:
    image: backend:1.0.0
    command: sh -c "sleep 10 && node /opt/backend/index.js"
-   network:
+   networks:
     - expense
    container_name: backend
    depends_on:
@@ -25,7 +25,7 @@ services:
  
   frontend:
    image: frontend:1.0.0
-   network:
+   networks:
     - expense
    ports:
     - 80:80
