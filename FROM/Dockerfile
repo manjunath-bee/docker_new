@@ -1,5 +1,5 @@
 FROM almalinux:9
-CMD ["ping", "google.com"]
+ENTRYPOINT ["ping", "google.com"]
 #EXPOSE 80
 #ENV project="devops" \
     #name="gali"
