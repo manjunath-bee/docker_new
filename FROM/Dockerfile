@@ -3,7 +3,7 @@ FROM almalinux:9
 #USER expense
 #RUN mkdir /workdir
 #WORKDIR /workdir
-ARG user1=someuser
+#ARG user1=someuser
 RUN echo "hello ${user1}"
 CMD ["sleep","100"]
 #ENTRYPOINT ["ping"]
