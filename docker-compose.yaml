@@ -1,0 +1,46 @@
+networks:
+  # The presence of these objects is sufficient to define them
+  expense: {}
+
+volumes:
+  mysql:
+
+services:
+  frontend:
+    image: example/webapp
+    ports:
+      - "443:8043"
+    networks:
+      - front-tier
+      - back-tier
+    configs:
+      - httpd-config
+    secrets:
+      - server-certificate
+
+  mysql:
+    image: mysql:1.0.0
+    volumes:
+      - mysql:/var/lib/mysql
+    networks:
+      - expense
+    container_name: mysql
+
+  backend:
+   image: backend:1.0.0
+   command: sh -c "sleep 10 && node /opt/backend/index.js"
+   network:
+    - expense
+   container_name: backend
+   depends_on:
+    - mysql
+ 
+  frontend:
+   image: frontend:1.0.0
+   network:
+    - expense
+   ports:
+    - 80:80
+   container_name: frontend
+   depends_on:
+    - backend
