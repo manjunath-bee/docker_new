@@ -7,3 +7,5 @@ spec:
   containers:
     - name: foo
       image: nginx
+    - name: almalinux
+      image: almalinux:9
