@@ -6,6 +6,8 @@ metadata:
   labels:
     environment: production
     app: nginx
+  annotations:
+    imageregistry: "https://hub.docker.com/"
 spec:
   containers:
   - name: nginx
