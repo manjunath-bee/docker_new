@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: app
+  labels:
+    app: nginx
 spec:
   nodeSelector:
     topology.kubernetes.io/zone=us-east-1d
@@ -15,3 +17,17 @@ spec:
   - name: persistent-storage
     persistentVolumeClaim:
       claimName: ebs-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: expense
+  name: frontend
+spec:
+  type: LoadBalancer
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
