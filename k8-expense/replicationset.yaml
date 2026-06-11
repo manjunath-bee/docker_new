@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: ReplicaSet
 metadata:
   name: nginx
-  Namespace: expense
+  namespace: expense
   labels:
     app: nginx
     tier: web
@@ -15,7 +15,6 @@ spec:
       tier: web
   template:
     metadata:
-      Namespace: expense
       labels:
         app: nginx
         tier: web
