@@ -15,6 +15,7 @@ spec:
       tier: web
   template:
     metadata:
+      Namespace: expense
       labels:
         app: nginx
         tier: web
