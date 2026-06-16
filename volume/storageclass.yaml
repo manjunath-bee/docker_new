@@ -7,3 +7,8 @@ parameters:
   type: gp3
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: topology.kubernetes.io/zone
+        values:
+          - us-east-1b
