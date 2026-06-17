@@ -18,6 +18,9 @@ spec:
       containers:
       - name: backend
         image: manjudbadevops/backend:1.0.0
+        envFrom:
+        - configMapRef:
+            name: myconfigmap
 ---
 apiVersion: v1
 kind: Service
