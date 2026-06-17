@@ -1,59 +1,33 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: mysql
-  namespace: expense
-  labels:
-    app: mysql
-spec:
-  clusterIP: None
-  selector:
-    app: mysql
----
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: mysql
   namespace: expense
+  name: backend
+  labels:
+    app: backend
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      app: mysql
-  serviceName: "mysql"
-  replicas: 2
-  minReadySeconds: 10
+      app: backend
   template:
     metadata:
       labels:
-        app: mysql
+        app: backend
     spec:
-      terminationGracePeriodSeconds: 10
       containers:
-        - name: mysql
-          image: manjudbadevops/mysql:1.0.0
-          volumeMounts:
-            - name: www
-              mountPath: /var/lib/mysql
-  volumeClaimTemplates:
-    - metadata:
-        name: www
-        namespace: expense
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: "gp3-storage"
-        resources:
-          requests:
-            storage: 1Gi
+      - name: backend
+        image: manjudbadevops/backend:1.0.0
 ---
 apiVersion: v1
 kind: Service
 metadata:
   namespace: expense
-  name: mysql
+  name: backend
 spec:
   selector:
-    app: mysql
+    app: backend
   ports:
     - protocol: TCP
-      port: 3306
-      targetPort: 3306
+      port: 8080
+      targetPort: 8080
