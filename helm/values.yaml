@@ -1,2 +1,2 @@
-mainfest:
-   replica: 3
+deployment:
+  replica: 3
