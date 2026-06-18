@@ -1,0 +1,23 @@
+{
+  "kiroAgent.trustedCommands": [
+    "node .apex/tools/workflow-state.js *",
+    "node .apex/tools/html-converter/convert-md-to-html.js",
+    "mkdir *",
+    "wc *",
+    "grep *",
+    "cat *",
+    "du *",
+    "find *",
+    "ls *",
+    "head *",
+    "kiro-cli chat *",
+    "pwd *",
+    "npx tsc *",
+    "npm run *",
+    "npm test",
+    "mv *",
+    "sed *",
+    "echo *",
+    "date *"
+  ]
+}
