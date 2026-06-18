@@ -6,7 +6,7 @@ metadata:
   labels:
     app: nginx
 spec:
-  replicas: 3
+  replicas: {{ .Values.deployment.replica}}
   selector:
     matchLabels:
       app: nginx
