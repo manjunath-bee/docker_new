@@ -3,15 +3,15 @@ kind: Pod
 metadata:
   name: simple-pod
 spec:
-   affinity:
+  affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
-        - matchExpressions:
-          - key: hardware
-            operator: In
-            values:
-            - gcp  
+          - matchExpressions:
+              - key: hardware
+                operator: In
+                values:
+                  - gcp
   containers:
     - name: nginx
       image: nginx
