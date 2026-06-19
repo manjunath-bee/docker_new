@@ -15,4 +15,8 @@ spec:
   containers:
     - name: nginx
       image: nginx
-  
+  tolerations:
+    - key: "hardware"
+      operator: "Equal"
+      value: "gcp"
+      effect: "NoSchedule"
