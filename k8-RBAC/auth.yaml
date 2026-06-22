@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapRoles: |
+    - rolearn: arn:aws:iam::856678556116:role/eksctl-expense-nodegroup-expense-NodeInstanceRole-XmM2He9sPv3v
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes
+  mapUsers: |
+    - userarn: arn:aws:iam::856678556116:user/Sudheer
+      username: Sudheer
+      groups: []
