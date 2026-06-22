@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: app1
-        image: app1
+        image: manjudbadevops/app1:1.0.0 
         ports:
         - containerPort: 80
 ---
