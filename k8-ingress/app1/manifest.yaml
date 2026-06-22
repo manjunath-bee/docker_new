@@ -40,19 +40,20 @@ metadata:
   namespace: expense
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip 
+    alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
     alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:856678556116:certificate/18017524-8880-40d6-b5f9-eb9b17ef8b5d
 spec:
   ingressClassName: alb
   rules:
-   - host: "*.aws82s.online"
-    http:
-      paths:
-      - pathType: Prefix
-        path: "/"
-        backend:
-          service:
-            name: my-service
-            port:
-              number: 80
+    - host: "*.aws82s.online"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: my-service
+                port:
+                  number: 80
+
