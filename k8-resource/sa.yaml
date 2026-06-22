@@ -1,3 +1,28 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: screte-reader        # Add this
+  namespace: expense
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods       # Add this
+  namespace: expense
+subjects:
+- kind: serviceAccount
+  name: aws-service-account
+  namespace: expense
+roleRef:
+  kind: Role
+  name: screte-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+
 apiVersion: v1
 kind: Pod
 metadata:
