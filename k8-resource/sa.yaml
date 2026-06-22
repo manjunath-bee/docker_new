@@ -11,7 +11,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: read-pods       # Add this
+  name: secret-pods       # Add this
   namespace: expense
 subjects:
 - kind: serviceAccount
