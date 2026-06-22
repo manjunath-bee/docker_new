@@ -14,7 +14,7 @@ metadata:
   name: secret-pods       # Add this
   namespace: expense
 subjects:
-- kind: serviceAccount
+- kind: ServiceAccount
   name: aws-service-account
   namespace: expense
 roleRef:
