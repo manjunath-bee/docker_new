@@ -23,38 +23,6 @@ spec:
         runAsUser: 10001
         runAsGroup: 10001
         runAsNonRoot: true
-      initContainers:
-      - name: fetch-secrets
-        image: amazon/aws-cli:latest
-        command: ["sh", "-c"]
-        args:
-        - |
-          SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id {{ .Values.aws.secretName }} \
-            --region {{ .Values.aws.region }} \
-            --query SecretString \
-            --output text 2>/dev/null)
-          if [ $? -eq 0 ] && [ -n "$SECRET" ]; then
-            echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); open('/secrets/username','w').write(d['username']); open('/secrets/password','w').write(d['password'])"
-            echo "Password fetched from AWS Secrets Manager"
-          elif [ -f /k8s-secret/password ]; then
-            cp /k8s-secret/password /secrets/password
-            echo "sa" > /secrets/username
-            echo "Password fetched from K8s secret (fallback)"
-          else
-            echo "ERROR: No password source available"
-            exit 1
-          fi
-        volumeMounts:
-        - name: secrets
-          mountPath: /secrets
-        - name: k8s-secret
-          mountPath: /k8s-secret
-          readOnly: true
-        securityContext:
-          allowPrivilegeEscalation: false
-          runAsUser: 0
-          runAsNonRoot: false
       containers:
       - name: mssql
         image: {{ .Values.mssql.image }}:{{ .Values.mssql.tag }}
@@ -80,7 +48,7 @@ spec:
         command: ["sh", "-c"]
         args:
         - |
-          export MSSQL_SA_PASSWORD=$(cat /secrets/password)
+          export MSSQL_SA_PASSWORD=$(cat /mnt/secrets/password)
           /opt/mssql/bin/sqlservr
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
@@ -94,8 +62,8 @@ spec:
         - name: mssql-config
           mountPath: /var/opt/mssql/mssql.conf
           subPath: mssql.conf
-        - name: secrets
-          mountPath: /secrets
+        - name: secrets-store
+          mountPath: /mnt/secrets
           readOnly: true
         livenessProbe:
           tcpSocket:
@@ -118,13 +86,12 @@ spec:
       - name: mssql-config
         configMap:
           name: {{ include "mssql.fullname" . }}-config
-      - name: secrets
-        emptyDir:
-          medium: Memory
-      - name: k8s-secret
-        secret:
-          secretName: mssql-sa-password
-          optional: true
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: {{ include "mssql.fullname" . }}-secret
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
