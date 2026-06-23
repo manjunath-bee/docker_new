@@ -26,21 +26,36 @@ spec:
         runAsGroup: 10001
         runAsNonRoot: true
       # Init container fetches secrets from AWS Secrets Manager using IRSA
+      # Falls back to K8s secret if IRSA is not yet configured
       initContainers:
       - name: fetch-secrets
         image: amazon/aws-cli:latest
         command: ["sh", "-c"]
         args:
         - |
+          # Try AWS Secrets Manager first (IRSA)
           SECRET=$(aws secretsmanager get-secret-value \
             --secret-id mssql/sa-password \
             --region us-east-1 \
             --query SecretString \
-            --output text)
-          echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); open('/secrets/username','w').write(d['username']); open('/secrets/password','w').write(d['password'])"
+            --output text 2>/dev/null)
+          if [ $? -eq 0 ] && [ -n "$SECRET" ]; then
+            echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); open('/secrets/username','w').write(d['username']); open('/secrets/password','w').write(d['password'])"
+            echo "Password fetched from AWS Secrets Manager"
+          elif [ -f /k8s-secret/password ]; then
+            cp /k8s-secret/password /secrets/password
+            echo "sa" > /secrets/username
+            echo "Password fetched from K8s secret (fallback)"
+          else
+            echo "ERROR: No password source available"
+            exit 1
+          fi
         volumeMounts:
         - name: secrets
           mountPath: /secrets
+        - name: k8s-secret
+          mountPath: /k8s-secret
+          readOnly: true
         securityContext:
           allowPrivilegeEscalation: false
           runAsUser: 0       # AWS CLI needs root in init container
@@ -117,6 +132,10 @@ spec:
       - name: secrets
         emptyDir:
           medium: Memory    # tmpfs - secrets never written to disk
+      - name: k8s-secret
+        secret:
+          secretName: mssql-sa-password
+          optional: true    # Won't block pod if secret doesn't exist
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:
