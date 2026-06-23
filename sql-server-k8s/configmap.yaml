@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mssql-config
+  namespace: mssql
+  labels:
+    app: mssql
+data:
+  # SQL Server configuration
+  mssql.conf: |
+    [sqlagent]
+    enabled = true
+
+    [memory]
+    memorylimitmb = 3072
+
+    [network]
+    tlsprotocols = 1.2
+    forceencryption = 1
+
+    [telemetry]
+    customerfeedback = false
+
+    [traceflag]
+    traceflag0 = 3226
+    traceflag1 = 1222

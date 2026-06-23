@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mssql-network-policy
+  namespace: mssql
+  labels:
+    app: mssql
+spec:
+  podSelector:
+    matchLabels:
+      app: mssql
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow SQL Server connections only from app namespaces
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          access-mssql: "true"
+    ports:
+    - protocol: TCP
+      port: 1433
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
