@@ -1,160 +1,146 @@
-# SQL Server 2022 on Kubernetes - Production Deployment (Helm)
+# SQL Server 2022 on EKS - Helm Deployment
 
-## Architecture
+## Required AWS Services
 
-- **SQL Server 2022 Enterprise** running as non-root user
-- **AWS Secrets Manager** for SA password (via IRSA + init container with AWS CLI)
-- **Separate volumes** for data, logs, and backups (performance best practice)
-- **Encrypted EBS gp3 volumes** with retain policy
-- **NetworkPolicy** restricting access to port 1433 from labeled namespaces only
-- **PodDisruptionBudget** preventing accidental eviction
-- **Health probes** for automatic restart on failure
-- **Resource limits** matching requests to prevent OOM kills
-- **Helm chart** for repeatable, configurable deployments
+| Service | Purpose |
+|---------|---------|
+| EKS | Kubernetes cluster |
+| EBS CSI Driver | Dynamic volume provisioning (gp3) |
+| Secrets Manager | Stores SA password |
+| IAM (IRSA) | Pod-level AWS authentication |
+| Secrets Store CSI Driver + ASCP | Optional (if using CSI-based secret mount) |
 
-## Files
+## Complete Setup from Scratch
 
-| File | Purpose |
-|------|---------|
-| helm/mssql/Chart.yaml | Helm chart metadata |
-| helm/mssql/values.yaml | Default configuration values |
-| helm/mssql/templates/_helpers.tpl | Template helper functions |
-| helm/mssql/templates/namespace.yaml | Dedicated namespace |
-| helm/mssql/templates/serviceaccount.yaml | IRSA-enabled service account |
-| helm/mssql/templates/configmap.yaml | SQL Server config (TLS, memory, trace flags) |
-| helm/mssql/templates/storageclass.yaml | gp3 encrypted EBS storage |
-| helm/mssql/templates/networkpolicy.yaml | Firewall rules |
-| helm/mssql/templates/service.yaml | Headless + ClusterIP service |
-| helm/mssql/templates/statefulset.yaml | StatefulSet with volumeClaimTemplates |
-| helm/mssql/templates/pdb.yaml | Pod disruption budget |
-| helm/mssql/templates/NOTES.txt | Post-install instructions |
-| aws-setup.sh | AWS prerequisites (Secrets Manager, IRSA) |
+### Step 1: Associate OIDC Provider
 
-## Deploy
-
-### Prerequisites (run once)
 ```bash
-# Run the AWS setup script first
-chmod +x aws-setup.sh
-./aws-setup.sh
+eksctl utils associate-iam-oidc-provider \
+  --cluster expense --region us-east-1 --approve
 ```
 
-### Validate (dry run)
+### Step 2: Install EBS CSI Driver
+
 ```bash
-helm install mssql ./helm/mssql -n mssql --create-namespace --dry-run
+eksctl create addon --name aws-ebs-csi-driver \
+  --cluster expense --region us-east-1
+
+# Verify
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-ebs-csi-driver
 ```
 
-### Install with default values
+### Step 3: Install Secrets Store CSI Driver + AWS Provider
+
+```bash
+helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+helm repo add aws-secrets-manager https://aws.github.io/secrets-store-csi-driver-provider-aws
+helm repo update
+
+helm install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver \
+  -n kube-system --set syncSecret.enabled=true
+
+helm install secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws \
+  -n kube-system
+
+# Verify
+kubectl get pods -n kube-system -l app=secrets-store-csi-driver
+kubectl get pods -n kube-system -l app=secrets-store-csi-driver-provider-aws
+```
+
+### Step 4: Create Secret in AWS Secrets Manager
+
+```bash
+aws secretsmanager create-secret \
+  --name mssql/sa-password \
+  --secret-string '{"username":"sa","password":"YourStr0ng!P@ssword"}' \
+  --region us-east-1
+```
+
+### Step 5: Create IRSA Role
+
+```bash
+OIDC_ID=$(aws eks describe-cluster --name expense --region us-east-1 \
+  --query "cluster.identity.oidc.issuer" --output text | sed 's|.*/||')
+
+# Create policy
+cat > /tmp/mssql-secrets-policy.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+    "Resource": "arn:aws:secretsmanager:us-east-1:856678556116:secret:mssql/*"
+  }]
+}
+EOF
+aws iam create-policy --policy-name mssql-secrets-policy \
+  --policy-document file:///tmp/mssql-secrets-policy.json
+
+# Create role with OIDC trust
+cat > /tmp/trust-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {
+      "Federated": "arn:aws:iam::856678556116:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/${OIDC_ID}"
+    },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "oidc.eks.us-east-1.amazonaws.com/id/${OIDC_ID}:sub": "system:serviceaccount:mssql:mssql-sa",
+        "oidc.eks.us-east-1.amazonaws.com/id/${OIDC_ID}:aud": "sts.amazonaws.com"
+      }
+    }
+  }]
+}
+EOF
+aws iam create-role --role-name mssql-secrets-role \
+  --assume-role-policy-document file:///tmp/trust-policy.json
+aws iam attach-role-policy --role-name mssql-secrets-role \
+  --policy-arn arn:aws:iam::856678556116:policy/mssql-secrets-policy
+
+# Verify
+aws iam get-role --role-name mssql-secrets-role --query "Role.Arn" --output text
+```
+
+### Step 6: Deploy with Helm
+
 ```bash
 helm install mssql ./helm/mssql -n mssql --create-namespace
+kubectl get pods -n mssql -w
 ```
 
-### Install with overrides
+### Step 7: Verify
+
 ```bash
-helm install mssql ./helm/mssql -n mssql --create-namespace \
-  --set aws.secretName=mysqlrds \
-  --set aws.region=us-east-1 \
-  --set mssql.pid=Standard \
-  --set storage.data.size=100Gi \
-  --set service.scheme=internal
+kubectl get pods -n mssql          # Should be Running
+kubectl get pvc -n mssql           # Should be Bound
+kubectl logs mssql-mssql-0 -n mssql -c mssql
+kubectl get svc -n mssql           # NLB endpoint
 ```
-
-### Upgrade
-```bash
-helm upgrade mssql ./helm/mssql -n mssql
-```
-
-### Uninstall
-```bash
-helm uninstall mssql -n mssql
-# PVCs are retained (reclaimPolicy: Retain) - delete manually if needed
-```
-
-## Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| mssql.image | SQL Server image | mcr.microsoft.com/mssql/server |
-| mssql.tag | Image tag | 2022-latest |
-| mssql.pid | SQL Server edition | Enterprise |
-| mssql.memoryLimitMB | Memory limit for SQL | 3072 |
-| aws.region | AWS region | us-east-1 |
-| aws.secretName | Secrets Manager secret name | mssql/sa-password |
-| aws.irsaRoleArn | IAM role ARN for IRSA | (set per environment) |
-| storage.className | StorageClass name | mssql-storage |
-| storage.data.size | Data volume size | 50Gi |
-| storage.log.size | Log volume size | 20Gi |
-| storage.backup.size | Backup volume size | 50Gi |
-| networkPolicy.enabled | Enable NetworkPolicy | true |
-| pdb.enabled | Enable PodDisruptionBudget | true |
-| service.scheme | NLB scheme: internal or internet-facing | internal |
-| service.subnetIds | Subnet IDs for NLB placement | (auto-detected) |
 
 ## Connect
 
 ```bash
-# Get the NLB DNS name
-kubectl get svc mssql-mssql -n mssql
-
-# Connect from outside K8s (DMS, other VPCs, EC2 instances)
-sqlcmd -S <nlb-dns-name>,1433 -U sa
-
-# Port forward for local access (alternative)
-kubectl port-forward svc/mssql-mssql 1433:1433 -n mssql
-sqlcmd -S localhost,1433 -U sa
-```
-
-## DMS Endpoint Configuration
-
-Once the NLB is created, use its DNS name as the DMS source endpoint:
-
-```bash
 # Get NLB DNS
-NLB_DNS=$(kubectl get svc mssql-mssql -n mssql -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+kubectl get svc mssql-mssql -n mssql -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 
-# Create DMS endpoint
-aws dms create-endpoint \
-  --endpoint-identifier mssql-source \
-  --endpoint-type source \
-  --engine-name sqlserver \
-  --server-name $NLB_DNS \
-  --port 1433 \
-  --username sa \
-  --password <from-secrets-manager> \
-  --database-name <your-db> \
-  --region us-east-1
+# Connect
+sqlcmd -S <nlb-dns>,1433 -U sa
 ```
 
-If DMS is in another VPC, set up VPC Peering between the DMS VPC and EKS VPC, then update route tables in both VPCs.
-
-## Allow app namespace to connect
-
-Label your app namespace to allow traffic through the NetworkPolicy:
+## Allow App Namespace Access
 
 ```bash
 kubectl label namespace expense access-mssql=true
 ```
 
-## Security Best Practices Applied
+## Troubleshooting
 
-- Non-root container (UID 10001)
-- All capabilities dropped
-- No privilege escalation
-- TLS 1.2 enforced
-- NetworkPolicy restricts ingress to labeled namespaces
-- SA password stored in AWS Secrets Manager (not in K8s secrets)
-- Secrets volume uses tmpfs (memory) - never written to disk
-- Service is ClusterIP (not exposed externally)
-- Telemetry disabled
-- IRSA for AWS authentication (no hardcoded credentials)
-
-## Performance Best Practices Applied
-
-- Separate volumes for data and transaction logs
-- gp3 EBS with provisioned IOPS (3000) and throughput (125 MB/s)
-- Memory limit set explicitly
-- Trace flag 3226 (suppress backup log entries)
-- Trace flag 1222 (deadlock detection)
-- SQL Agent enabled for maintenance jobs
-- CPU requests/limits configured
-- Volume expansion enabled for future growth
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `fetch-secrets` AccessDenied | IRSA role missing | Run Step 5, then `kubectl delete pod mssql-mssql-0 -n mssql` |
+| Pod ContainerCreating + volume error | CSI driver not installed | Run Step 3 |
+| PVC Pending | EBS CSI driver missing | Run Step 2 |
+| Pod Pending (no nodes) | Toleration mismatch | `kubectl taint nodes <node> database=mssql:NoSchedule` or remove toleration from values.yaml |
