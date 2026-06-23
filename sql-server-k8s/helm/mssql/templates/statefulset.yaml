@@ -102,11 +102,6 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
-          capabilities:
-            drop:
-            - ALL
-            add:
-            - SYS_PTRACE
       volumes:
       - name: mssql-config
         configMap:
