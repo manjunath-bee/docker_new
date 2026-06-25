@@ -15,6 +15,7 @@ aws:
 
 # Service Account
 serviceAccount:
+  create: false   # Set to false when using eksctl create iamserviceaccount
   name: mssql-sa
 
 # Service (NLB for external access)
@@ -33,6 +34,7 @@ resources:
 
 # Storage
 storage:
+  create: true              # Set to false if StorageClass already exists
   className: mssql-storage
   provisioner: ebs.csi.aws.com
   type: gp3

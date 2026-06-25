@@ -23,27 +23,6 @@ spec:
         runAsUser: 10001
         runAsGroup: 10001
         runAsNonRoot: true
-      initContainers:
-      - name: fetch-secrets
-        image: amazon/aws-cli:latest
-        command: ["sh", "-c"]
-        args:
-        - |
-          SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id {{ .Values.aws.secretName }} \
-            --region {{ .Values.aws.region }} \
-            --query SecretString --output text)
-          echo "$SECRET" | python3 -c "
-          import json, sys
-          s = json.load(sys.stdin)
-          with open('/mnt/secrets/password', 'w') as f: f.write(s['password'])
-          with open('/mnt/secrets/username', 'w') as f: f.write(s['username'])
-          "
-        volumeMounts:
-        - name: secrets
-          mountPath: /mnt/secrets
-        securityContext:
-          allowPrivilegeEscalation: false
       containers:
       - name: mssql
         image: {{ .Values.mssql.image }}:{{ .Values.mssql.tag }}
@@ -83,7 +62,7 @@ spec:
         - name: mssql-config
           mountPath: /var/opt/mssql/mssql.conf
           subPath: mssql.conf
-        - name: secrets
+        - name: secrets-store
           mountPath: /mnt/secrets
           readOnly: true
         livenessProbe:
@@ -107,9 +86,12 @@ spec:
       - name: mssql-config
         configMap:
           name: {{ include "mssql.fullname" . }}-config
-      - name: secrets
-        emptyDir:
-          medium: Memory
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: {{ include "mssql.fullname" . }}-secret
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

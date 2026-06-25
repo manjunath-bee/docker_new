@@ -1,2 +1,8 @@
 .kiro/
 .apex/build-agent/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.exe

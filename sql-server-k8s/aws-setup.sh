@@ -1,14 +1,23 @@
 #!/bin/bash
-# AWS Setup for SQL Server on EKS
-# Installs all prerequisites needed before running: helm install mssql ./helm/mssql -n mssql
+# AWS Setup for SQL Server on EKS - Secrets Store CSI Driver + ASCP + IRSA
+# Following: https://docs.aws.amazon.com/secretsmanager/latest/userguide/integrating_ascp_irsa.html
+#
+# Steps:
+#   1. Associate OIDC provider
+#   2. Install EBS CSI Driver
+#   3. Install Secrets Store CSI Driver + ASCP
+#   4. Create secret in AWS Secrets Manager
+#   5. Create IAM policy
+#   6. Create IRSA service account (handles trust policy automatically)
+#   7. Create namespace
 
 CLUSTER_NAME="expense"
 REGION="us-east-1"
 ACCOUNT_ID="856678556116"
 NAMESPACE="mssql"
 SA_NAME="mssql-sa"
-ROLE_NAME="mssql-secrets-role"
 SECRET_NAME="mssql/sa-password"
+POLICY_NAME="mssql-secrets-policy"
 
 set -e
 
@@ -22,23 +31,25 @@ echo ""
 echo "=== Step 2: Install EBS CSI Driver ==="
 eksctl create addon --name aws-ebs-csi-driver \
   --cluster $CLUSTER_NAME --region $REGION 2>/dev/null || echo "EBS CSI driver already installed"
-echo "Verifying EBS CSI driver..."
-kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-ebs-csi-driver --no-headers | head -3
 
 echo ""
-echo "=== Step 3: Install Secrets Store CSI Driver ==="
-helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
-helm repo add aws-secrets-manager https://aws.github.io/secrets-store-csi-driver-provider-aws
+echo "=== Step 3: Install Secrets Store CSI Driver + ASCP ==="
+helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 2>/dev/null || true
 helm repo update
-helm upgrade --install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver \
-  -n kube-system --set syncSecret.enabled=true
-helm upgrade --install secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws \
-  -n kube-system
 
-echo "Waiting 30s for CSI pods..."
-sleep 30
+helm upgrade --install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver \
+  -n kube-system \
+  --set syncSecret.enabled=true
+
+# Install ASCP using kubectl (avoids Helm ServiceAccount conflict)
+kubectl apply -f https://raw.githubusercontent.com/aws/secrets-store-csi-driver-provider-aws/main/deployment/aws-provider-installer.yaml
+
+echo "Waiting 20s for pods to start..."
+sleep 20
+echo "CSI Driver pods:"
 kubectl get pods -n kube-system -l app=secrets-store-csi-driver --no-headers
-kubectl get pods -n kube-system -l app=secrets-store-csi-driver-provider-aws --no-headers
+echo "ASCP pods:"
+kubectl get pods -n kube-system -l app=csi-secrets-store-provider-aws --no-headers
 
 echo ""
 echo "=== Step 4: Create/Update secret in AWS Secrets Manager ==="
@@ -50,17 +61,11 @@ aws secretsmanager put-secret-value \
   --secret-id $SECRET_NAME \
   --secret-string '{"username":"sa","password":"MyStr0ng!P@ss2024"}' \
   --region $REGION
-echo "Secret created/updated."
+echo "Secret ready."
 
 echo ""
-echo "=== Step 5: Get OIDC ID ==="
-OIDC_URL=$(aws eks describe-cluster --name $CLUSTER_NAME --region $REGION --query "cluster.identity.oidc.issuer" --output text)
-OIDC_ID=$(echo $OIDC_URL | sed 's|.*/||')
-echo "OIDC ID: $OIDC_ID"
-
-echo ""
-echo "=== Step 6: Create IAM policy ==="
-POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/mssql-secrets-policy"
+echo "=== Step 5: Create IAM policy ==="
+POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/${POLICY_NAME}"
 
 cat > /tmp/mssql-secrets-policy.json << EOF
 {
@@ -77,58 +82,42 @@ cat > /tmp/mssql-secrets-policy.json << EOF
 EOF
 
 aws iam create-policy \
-  --policy-name mssql-secrets-policy \
+  --policy-name $POLICY_NAME \
   --policy-document file:///tmp/mssql-secrets-policy.json 2>/dev/null || echo "Policy already exists"
 
 echo ""
-echo "=== Step 7: Create IRSA role ==="
-cat > /tmp/trust-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": {
-      "Federated": "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/oidc.eks.${REGION}.amazonaws.com/id/${OIDC_ID}"
-    },
-    "Action": "sts:AssumeRoleWithWebIdentity",
-    "Condition": {
-      "StringEquals": {
-        "oidc.eks.${REGION}.amazonaws.com/id/${OIDC_ID}:sub": "system:serviceaccount:${NAMESPACE}:${SA_NAME}",
-        "oidc.eks.${REGION}.amazonaws.com/id/${OIDC_ID}:aud": "sts.amazonaws.com"
-      }
-    }
-  }]
-}
-EOF
-
-aws iam create-role \
-  --role-name $ROLE_NAME \
-  --assume-role-policy-document file:///tmp/trust-policy.json 2>/dev/null || \
-aws iam update-assume-role-policy \
-  --role-name $ROLE_NAME \
-  --policy-document file:///tmp/trust-policy.json
-
-aws iam attach-role-policy \
-  --role-name $ROLE_NAME \
-  --policy-arn $POLICY_ARN
+echo "=== Step 6: Create IRSA Service Account ==="
+# This is the KEY step - eksctl handles:
+#   - Creating the IAM role with correct trust policy
+#   - Annotating the K8s ServiceAccount with the role ARN
+#   - Setting up the OIDC condition correctly
+eksctl create iamserviceaccount \
+  --name $SA_NAME \
+  --namespace $NAMESPACE \
+  --cluster $CLUSTER_NAME \
+  --region $REGION \
+  --attach-policy-arn $POLICY_ARN \
+  --approve \
+  --override-existing-serviceaccounts
 
 echo ""
-echo "=== Step 8: Verify IRSA role ==="
-aws iam get-role --role-name $ROLE_NAME --query "Role.Arn" --output text || {
-  echo "ERROR: Failed to create IAM role $ROLE_NAME."
-  exit 1
-}
-
+echo "=== Step 7: Verify Service Account ==="
+echo "ServiceAccount annotation:"
+kubectl get sa $SA_NAME -n $NAMESPACE -o jsonpath='{.metadata.annotations.eks\.amazonaws\.com/role-arn}'
 echo ""
-echo "=== Step 9: Create namespace ==="
-kubectl create namespace $NAMESPACE 2>/dev/null || echo "Namespace already exists"
 
 echo ""
 echo "=== Setup complete ==="
 echo ""
-echo "Deploy:"
-echo "  helm install mssql ./helm/mssql -n mssql"
+echo "IMPORTANT: The ServiceAccount was created by eksctl with the correct role ARN."
+echo "Your Helm chart's serviceaccount.yaml will conflict with this."
+echo "Deploy with:"
+echo ""
+echo "  helm install mssql ./helm/mssql -n mssql \\"
+echo "    --set resources.requests.cpu=500m \\"
+echo "    --set resources.limits.cpu=2 \\"
+echo "    --set storage.create=false"
 echo ""
 echo "Verify:"
 echo "  kubectl get pods -n mssql -w"
-echo "  kubectl logs mssql-mssql-0 -n mssql -c mssql"
+echo "  kubectl logs mssql-mssql-0 -n mssql"
