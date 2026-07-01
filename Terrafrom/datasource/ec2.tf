@@ -2,19 +2,26 @@ resource "aws_security_group" "allow_tls" {
   name        = "allow_tls"
   description = "Allow TLS inbound traffic and all outbound"
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+# Example usage in security group:
+dynamic "ingress" {
+  for_each = local.inbound_ports
+  content {
+    from_port   = ingress.value
+    to_port     = ingress.value
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
 
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+dynamic "egress" {
+  for_each = local.outbound_ports
+  content {
+    from_port   = egress.value
+    to_port     = egress.value
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
 
   tags = {
     Name = "allow_tls"
@@ -22,7 +29,7 @@ resource "aws_security_group" "allow_tls" {
 }
 
 resource "aws_instance" "example" {
-  ami                    = "ami-0220d79f3f480ecf5"
+  ami                    = local.ami
   instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.allow_tls.id]
 

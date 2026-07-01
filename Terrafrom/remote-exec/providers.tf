@@ -5,13 +5,6 @@ terraform {
       version = "~> 6.0"
     }
   }
-    backend "s3" {
-    bucket = "dms-manju"
-    key    = "path/to/my/key"
-    region = "us-east-1"
-    dynamodb_table = "statefile"
-  }
-
 }
 
 # Configure the AWS Provider

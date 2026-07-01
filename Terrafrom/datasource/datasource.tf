@@ -1,20 +1,12 @@
 data "aws_ami" "example" {
-  most_recent      = true
+  most_recent = true
+  owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["devops-*"]
+    values = ["al2023-ami-*-x86_64"]
   }
 
-  filter {
-    name   = "root-device-type"
-    values = ["ebs"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
 }
 
 output "xxx" {
