@@ -143,3 +143,50 @@ echo "Verify:"
 echo "  kubectl get pods -n mssql -w"
 echo "  kubectl describe pod mssql-mssql-0 -n mssql"
 echo "  kubectl logs mssql-mssql-0 -n mssql --tail=20"
+
+echo ""
+echo "=== Step 10: Install AWS Load Balancer Controller ==="
+
+# Download IAM policy
+echo "Downloading IAM policy for AWS Load Balancer Controller..."
+curl -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
+
+# Create IAM policy
+echo "Creating IAM policy..."
+aws iam create-policy \
+  --policy-name AWSLoadBalancerControllerIAMPolicy \
+  --policy-document file://iam_policy.json \
+  --region $REGION 2>/dev/null || echo "AWSLoadBalancerControllerIAMPolicy already exists"
+
+# Create IRSA service account for the controller
+echo "Creating IRSA service account for AWS Load Balancer Controller..."
+eksctl create iamserviceaccount \
+  --cluster $CLUSTER_NAME \
+  --namespace kube-system \
+  --name aws-load-balancer-controller \
+  --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve \
+  --region $REGION \
+  --override-existing-serviceaccounts 2>/dev/null || true
+
+# Install the controller via Helm
+echo "Installing AWS Load Balancer Controller via Helm..."
+helm repo add eks https://aws.github.io/eks-charts 2>/dev/null || true
+helm repo update
+
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=$CLUSTER_NAME \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller
+
+echo "Waiting 15s for controller pods..."
+sleep 15
+echo "AWS Load Balancer Controller pods:"
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller --no-headers
+
+# Clean up downloaded policy file
+rm -f iam_policy.json
+
+echo ""
+echo "=== AWS Load Balancer Controller installation complete ==="
