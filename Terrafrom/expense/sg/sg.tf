@@ -147,3 +147,12 @@ resource "aws_security_group_rule" "backend_vpn" {
   security_group_id = module.backend_sg.sg_id
 }
 
+resource "aws_security_group_rule" "backend_sg_public" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks        = ["122.174.139.127/32"]
+  security_group_id = module.backend_sg.sg_id
+}
+
