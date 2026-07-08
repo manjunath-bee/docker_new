@@ -1,10 +1,10 @@
-- name: disable current nodejs
-  ansible.builtin.command: dnf module disable nodejs -y
+- name: install nodejs 20
+  ansible.builtin.shell: |
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+  args:
+    creates: /etc/yum.repos.d/nodesource-el9.repo
 
-- name: enable nodejs 20
-  ansible.builtin.command: dnf module enable nodejs:20 -y
-
-- name: install nodejs
+- name: install nodejs and mysql client
   ansible.builtin.package:
     name: "{{ item }}"
     state: present
