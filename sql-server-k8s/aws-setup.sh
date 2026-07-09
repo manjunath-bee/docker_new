@@ -55,13 +55,23 @@ kubectl get pods -n kube-system -l app=csi-secrets-store-provider-aws --no-heade
 
 echo ""
 echo "=== Step 5: Create/Update secret in AWS Secrets Manager ==="
+read -p "Enter SQL Server SA username [sa]: " SA_USER
+SA_USER=${SA_USER:-sa}
+read -sp "Enter SQL Server SA password: " SA_PASS
+echo ""
+
+if [ -z "$SA_PASS" ]; then
+  echo "ERROR: Password cannot be empty."
+  exit 1
+fi
+
 aws secretsmanager create-secret \
   --name $SECRET_NAME \
-  --secret-string '{"username":"sa","password":"MyStr0ng!P@ss2024"}' \
+  --secret-string "{\"username\":\"${SA_USER}\",\"password\":\"${SA_PASS}\"}" \
   --region $REGION 2>/dev/null || \
 aws secretsmanager put-secret-value \
   --secret-id $SECRET_NAME \
-  --secret-string '{"username":"sa","password":"MyStr0ng!P@ss2024"}' \
+  --secret-string "{\"username\":\"${SA_USER}\",\"password\":\"${SA_PASS}\"}" \
   --region $REGION
 echo "Secret ready."
 
