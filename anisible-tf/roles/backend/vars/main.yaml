@@ -1,5 +1,5 @@
 MYSQL_HOST: "mysql-{{ ENVIRONMENT }}.aws82s.online"
 MYSQL_USER: root
-MYSQL_PASSWORD: Zc4v!Hf8>aJiR2ecm<tImI8EuW?v
+MYSQL_PASSWORD: Sudheer$241
 APP_LOCAION: /app
 COMPONENT: backend
