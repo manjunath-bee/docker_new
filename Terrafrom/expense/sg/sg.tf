@@ -59,7 +59,7 @@ resource "aws_security_group_rule" "sg_bashhost" {
   from_port         = 22
   to_port           = 22
   protocol          = "tcp"
-  cidr_blocks        = ["122.174.139.127/32"]
+  cidr_blocks        = ["122.169.152.227/32"]
   security_group_id = module.bashost_sg.sg_id
 }
 
@@ -152,7 +152,7 @@ resource "aws_security_group_rule" "backend_sg_public" {
   from_port         = 22
   to_port           = 22
   protocol          = "tcp"
-  cidr_blocks        = ["122.174.139.127/32"]
+  cidr_blocks        = ["122.169.152.227/32"]
   security_group_id = module.backend_sg.sg_id
 }
 
@@ -165,3 +165,76 @@ resource "aws_security_group_rule" "mysql_backend" {
   source_security_group_id  = module.backend_sg.sg_id
   security_group_id = module.mysql_sg.sg_id
 }
+
+
+resource "aws_security_group_rule" "backend_alb" {
+  type              = "ingress"
+  from_port         = 8080
+  to_port           = 8080
+  protocol          = "tcp"
+  source_security_group_id  = module.alb_sg.sg_id
+  security_group_id = module.backend_sg.sg_id
+}
+
+module "web_sg" {
+  source         = "../../sg-module"
+  env = "web"
+}
+
+resource "aws_security_group_rule" "web_sg" {
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks        = ["122.169.152.227/32"]
+  security_group_id = module.web_sg.sg_id
+}
+
+module "frontend_sg" {
+  source         = "../../sg-module"
+  env = "frontend"
+}
+
+
+resource "aws_security_group_rule" "front_sg" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks        = ["122.169.152.227/32"]
+  security_group_id = module.frontend_sg.sg_id
+}
+
+
+resource "aws_security_group_rule" "front_web_sg" {
+  type              = "ingress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  source_security_group_id  = module.web_sg.sg_id
+  security_group_id = module.frontend_sg.sg_id
+}
+
+
+resource "aws_security_group_rule" "alb_frontend_sg" {
+  type              = "ingress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  source_security_group_id  = module.frontend_sg.sg_id
+  security_group_id = module.alb_sg.sg_id
+}
+
+resource "aws_vpc_security_group_egress_rule" "frontend_sg" {
+  security_group_id = module.frontend_sg.sg_id    # NOT frontend_sgcd
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+}
+
+
+
+
+
+
+
+

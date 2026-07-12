@@ -4,6 +4,8 @@ Description = Backend Service
 [Service]
 User=expense
 Environment=DB_HOST="{{ MYSQL_HOST }}"
+Environment=DB_USER="{{ MYSQL_USER }}"
+Environment=DB_PASSWORD="{{ MYSQL_PASSWORD }}"
 ExecStart=/bin/node /app/index.js
 SyslogIdentifier=backend
 

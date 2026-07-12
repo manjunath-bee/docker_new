@@ -1,34 +1,47 @@
 resource "aws_instance" "example" {
   ami                    = "ami-00b6288e85377e730"
   instance_type          = "t3.large"
-  vpc_security_group_ids = [data.aws_ssm_parameter.backend_sg.value]
-  subnet_id              = split(",", data.aws_ssm_parameter.private_id.value)[0]
-  key_name               = "balu"
-
-  user_data = <<-EOF
-    #!/bin/bash
-    sudo dnf install ansible-core -y
-    ansible-galaxy collection install community.general community.mysql
-    ansible-pull -i localhost, -U https://github.com/manjunath-bee/docker_new.git -d /tmp/ansible-repo anisible-tf/main.yaml -e COMPONENT=backend -e ENVIRONMENT=${var.environment}
-  EOF
-
+  vpc_security_group_ids = [data.aws_ssm_parameter.frontend_sg.value]
+  subnet_id = split(",", data.aws_ssm_parameter.public_id.value)[0]
+  key_name = "balu"
   tags = {
     Name = "HelloWorld"
   }
 }
 
-resource "null_resource" "wait_for_userdata" {
-  depends_on = [aws_instance.example]
+resource "null_resource" "cluster" {
+  # Changes to any instance of the cluster requires re-provisioning
+  triggers = {
+    instance_id = aws_instance.example.id
+  }
 
-  provisioner "local-exec" {
-    command     = "aws ec2 wait instance-status-ok --instance-ids ${aws_instance.example.id} --region us-east-2; Start-Sleep -Seconds 180"
-    interpreter = ["PowerShell", "-Command"]
+  # Bootstrap script can run on any instance of the cluster
+  # So we just choose the first in this case
+  
+  connection {
+  host        = aws_instance.example.public_ip
+  type        = "ssh"
+  user        = "ec2-user"
+  private_key = file("C:/Users/manjungj/Downloads/BALU.pem")
+}
+
+  provisioner "file" {
+    source      = "frontend.sh"
+    destination = "/tmp/frontend.sh"
+  }
+
+  provisioner "remote-exec" {
+    # Bootstrap script called with private_ip of each node in the cluster
+    inline = [
+      "chmod +x /tmp/frontend.sh",
+      "sudo sh /tmp/frontend.sh ${var.environment}"
+    ]
   }
 }
 
 
 resource "null_resource" "stop_instance" {
-  depends_on = [null_resource.wait_for_userdata]
+  depends_on = [null_resource.cluster]
 
   provisioner "local-exec" {
     command = "aws ec2 stop-instances --instance-ids ${aws_instance.example.id} --region us-east-2 && aws ec2 wait instance-stopped --instance-ids ${aws_instance.example.id} --region us-east-2"
@@ -36,7 +49,7 @@ resource "null_resource" "stop_instance" {
 }
 
 resource "aws_ami_from_instance" "example" {
-  name               = "terraform-example"
+  name               = "terraform-web-example"
   source_instance_id = aws_instance.example.id
   depends_on         = [null_resource.stop_instance]
 }
@@ -49,15 +62,15 @@ resource "null_resource" "terminate" {
   }
 }
 
-resource "aws_lb_target_group" "tg" {
-  name     = "tf-example-lb-tg"
-  port     = 8080
+resource "aws_lb_target_group" "web-tg" {
+  name     = "tf-example-lb-web-tg"
+  port     = 80
   protocol = "HTTP"
   vpc_id   = data.aws_ssm_parameter.vpc_id.value
 
   health_check {
-    path                = "/health"
-    port                = 8080
+    path                = "/"
+    port                = 80
     protocol            = "HTTP"
     healthy_threshold   = 2
     unhealthy_threshold = 3
@@ -67,14 +80,14 @@ resource "aws_lb_target_group" "tg" {
   }
 }
 
-resource "aws_launch_template" "example" {
-  name                                 = "example"
+resource "aws_launch_template" "web-example" {
+  name                                 = "web-example"
   image_id                             = aws_ami_from_instance.example.id
   instance_initiated_shutdown_behavior = "terminate"
   instance_type                        = "t2.micro"
   key_name                             = "balu"
   update_default_version               = true
-  vpc_security_group_ids               = [data.aws_ssm_parameter.backend_sg.value]
+  vpc_security_group_ids               = [data.aws_ssm_parameter.frontend_sg.value]
 
   tag_specifications {
     resource_type = "instance"
@@ -84,19 +97,19 @@ resource "aws_launch_template" "example" {
   }
 }
 
-resource "aws_autoscaling_group" "bar" {
-  name                      = "foobar3-terraform-test"
+resource "aws_autoscaling_group" "web-bar" {
+  name                      = "foobar3-terraform-web-test"
   max_size                  = 5
   min_size                  = 2
-  health_check_grace_period = 60
+  health_check_grace_period = 180
   health_check_type         = "ELB"
   desired_capacity          = 2
   force_delete              = true
-  target_group_arns         = [aws_lb_target_group.tg.arn]
-  vpc_zone_identifier       = split(",", data.aws_ssm_parameter.private_id.value)
+  target_group_arns         = [aws_lb_target_group.web-tg.arn]
+  vpc_zone_identifier       = split(",", data.aws_ssm_parameter.public_id.value)
 
   launch_template {
-    id      = aws_launch_template.example.id
+    id      = aws_launch_template.web-example.id
     version = "$Latest"
   }
 
@@ -119,18 +132,19 @@ resource "aws_autoscaling_group" "bar" {
   }
 }
 
-resource "aws_lb_listener_rule" "static" {
-  listener_arn = data.aws_ssm_parameter.alb_listener.value
+resource "aws_lb_listener_rule" "web-static" {
+  listener_arn = data.aws_ssm_parameter.web_listener.value
   priority     = 100
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.tg.arn
+    target_group_arn = aws_lb_target_group.web-tg.arn
   }
 
   condition {
     host_header {
-      values = ["backend.dev.aws82s.online"]
+      values = ["frontend.aws82s.online"]
     }
   }
 }
+

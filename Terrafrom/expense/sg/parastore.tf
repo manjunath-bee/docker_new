@@ -33,3 +33,17 @@ resource "aws_ssm_parameter" "vpn_sg" {
   value = module.vpn_sg.sg_id
   overwrite = true
 }
+
+resource "aws_ssm_parameter" "web_sg" {
+  name  = "web_sg"
+  type  = "String"
+  value = module.web_sg.sg_id
+  overwrite = true
+}
+
+resource "aws_ssm_parameter" "frontend_sg" {
+  name  = "frontend_sg"
+  type  = "String"
+  value = module.frontend_sg.sg_id
+  overwrite = true
+}
