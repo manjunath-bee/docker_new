@@ -29,7 +29,7 @@ resources:
     cpu: "2"
     memory: "4Gi"
   limits:
-    cpu: "4"
+    cpu: "2"
     memory: "4Gi"
 
 # Storage
@@ -75,3 +75,4 @@ config:
   traceFlags:
     - 3226    # Suppress backup log entries
     - 1222    # Deadlock detection
+    - 8002    # Soft CPU affinity for cgroup v2 CPU limit reporting
