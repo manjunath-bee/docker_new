@@ -26,10 +26,10 @@ service:
 # Resources
 resources:
   requests:
-    cpu: "2"
+    cpu: "1"
     memory: "4Gi"
   limits:
-    cpu: "2"
+    cpu: "1"
     memory: "4Gi"
 
 # Storage
