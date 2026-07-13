@@ -54,7 +54,7 @@ spec:
           SQL_PID=$!
           sleep 30
           /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C \
-            -Q "ALTER SERVER CONFIGURATION SET PROCESS AFFINITY CPU = 0 TO 1;"
+            -Q "ALTER SERVER CONFIGURATION SET PROCESS AFFINITY CPU = 0;"
           wait $SQL_PID
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
