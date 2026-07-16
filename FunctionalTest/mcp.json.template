@@ -1,0 +1,16 @@
+{
+  "source_db": {
+    "server": "your-sqlserver-host",
+    "database": "your-source-db",
+    "username": "your-user",
+    "password": "your-password",
+    "driver": "{ODBC Driver 18 for SQL Server}"
+  },
+  "target_db": {
+    "host": "your-postgres-host",
+    "port": 5432,
+    "database": "your-target-db",
+    "username": "your-user",
+    "password": "your-password"
+  }
+}

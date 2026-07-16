@@ -1,0 +1,18 @@
+# Credentials
+mcp.json
+
+# Generated test artifacts
+testcase/
+
+# XEL capture files
+xml/*.xel
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor
+.vscode/
+*.swp
+*.swo

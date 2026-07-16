@@ -1,0 +1,10 @@
+# Python dependencies
+pyodbc>=4.0.39
+psycopg2-binary>=2.9.9
+
+# System-level dependencies (NOT installable via pip):
+# - ODBC Driver 18 for SQL Server
+#   Ubuntu/Debian: https://learn.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server
+#     curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+#     sudo apt-get update && sudo apt-get install -y msodbcsql18 unixodbc-dev
+#   Windows: https://go.microsoft.com/fwlink/?linkid=2249004 (MSI installer)
