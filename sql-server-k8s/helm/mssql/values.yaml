@@ -8,7 +8,7 @@ mssql:
 
 # AWS Configuration
 aws:
-  region: us-east-2
+  region: us-east-1
   accountId: "856678556116"
   secretName: mssql/sa-password    # Secret in AWS Secrets Manager
   irsaRoleArn: arn:aws:iam::856678556116:role/mssql-secrets-role
