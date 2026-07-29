@@ -7,7 +7,7 @@
 # Prerequisites: EKS cluster, kubectl, helm, eksctl, aws cli
 
 CLUSTER_NAME="expense"
-REGION="us-east-1"
+REGION="us-east-2"
 ACCOUNT_ID="856678556116"
 NAMESPACE="mssql"
 SA_NAME="mssql-sa"
